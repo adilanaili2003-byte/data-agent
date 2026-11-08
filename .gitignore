@@ -1,0 +1,17 @@
+# 敏感信息（API Key，绝不能提交）
+.env
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 可重新生成的产物（seed_db.py / schema_rag.py build 可重建）
+data/
+vector_index/
+
+# 运行产生的图表与报告
+charts/
+reports/
+
+# 日志
+*.log

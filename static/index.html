@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Agent — 自然语言数据分析智能体</title>
+<style>
+  :root{
+    --bg:#f5f6fa; --card:#ffffff; --primary:#3b6ef5; --primary-dark:#2f5bd0;
+    --text:#1f2430; --muted:#6b7280; --border:#e5e7eb;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--text); height:100vh; display:flex; flex-direction:column;}
+  header{background:var(--card); border-bottom:1px solid var(--border); padding:14px 20px; display:flex; align-items:center; gap:12px;}
+  header .logo{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,#3b6ef5,#7c5cff);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;}
+  header h1{font-size:17px; font-weight:700;}
+  header .sub{font-size:12px; color:var(--muted);}
+  .examples{max-width:880px; margin:0 auto; padding:12px 20px 0; display:flex; gap:8px; flex-wrap:wrap;}
+  .examples button{background:#eef1ff; color:var(--primary-dark); border:1px solid #dbe1ff; font-weight:500; font-size:12px; padding:6px 12px; border-radius:999px; cursor:pointer;}
+  .examples button:hover{background:#e2e8ff;}
+  #chat{flex:1; overflow-y:auto; padding:20px; max-width:880px; width:100%; margin:0 auto; display:flex; flex-direction:column; gap:16px;}
+  .msg{display:flex; flex-direction:column; max-width:100%;}
+  .msg.user{align-items:flex-end;}
+  .bubble{max-width:88%; padding:12px 15px; border-radius:12px; line-height:1.7; font-size:14px;}
+  .user .bubble{background:var(--primary); color:#fff; border-bottom-right-radius:4px; white-space:pre-wrap; word-break:break-word;}
+  .assistant .answer{background:var(--card); border:1px solid var(--border); border-bottom-left-radius:4px;}
+  .assistant .answer table{border-collapse:collapse; margin:8px 0; font-size:13px;}
+  .assistant .answer th,.assistant .answer td{border:1px solid var(--border); padding:6px 10px; text-align:left;}
+  .assistant .answer th{background:#f8fafc;}
+  .assistant .answer code{background:#f1f5f9; padding:1px 5px; border-radius:4px; font-family:Consolas,monospace; font-size:13px;}
+  .steps{margin-top:6px; display:flex; flex-direction:column; gap:6px;}
+  .step{background:var(--card); border:1px solid var(--border); border-radius:8px; overflow:hidden;}
+  .step summary{cursor:pointer; padding:8px 12px; font-size:13px; list-style:none; display:flex; align-items:center; gap:6px;}
+  .step summary::-webkit-details-marker{display:none;}
+  .step summary .tname{font-weight:600; color:var(--primary-dark);}
+  .step summary .targs{color:var(--muted); font-family:Consolas,monospace; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;}
+  .step .tresult{padding:10px 12px; border-top:1px solid var(--border); font-family:Consolas,monospace; font-size:12px; white-space:pre-wrap; max-height:240px; overflow-y:auto; background:#fafbfc; color:#334155;}
+  .composer{background:var(--card); border-top:1px solid var(--border); padding:14px 20px;}
+  .composer-inner{max-width:880px; margin:0 auto; display:flex; gap:10px;}
+  #input{flex:1; border:1px solid var(--border); border-radius:10px; padding:12px 14px; font-size:14px; resize:none; outline:none; font-family:inherit;}
+  #input:focus{border-color:var(--primary);}
+  #send{background:var(--primary); color:#fff; border:none; border-radius:10px; padding:0 22px; font-size:14px; cursor:pointer; font-weight:600;}
+  #send:hover{background:var(--primary-dark);}
+  #send:disabled{opacity:.5; cursor:not-allowed;}
+  .typing{color:var(--muted); font-size:13px; padding:6px 0;}
+  .err{color:#dc2626; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:10px 14px; font-size:13px; white-space:pre-wrap;}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">DA</div>
+  <div>
+    <h1>Data Agent</h1>
+    <div class="sub">自然语言数据分析智能体 · LangGraph + Text-to-SQL + RAG + Tool Calling</div>
+  </div>
+</header>
+
+<div class="examples">
+  <button onclick="ask('帮我分析最近三个月各地区的销售额，找出下降最明显的地区')">📉 分析各地区销售额趋势</button>
+  <button onclick="ask('哪个品类的销售额最高？各品类占比多少？')">🥇 品类销售额排名</button>
+  <button onclick="ask('最近一个月退单率最高的是哪个品类？')">↩️ 退单率分析</button>
+</div>
+
+<div id="chat"></div>
+
+<div class="composer">
+  <div class="composer-inner">
+    <textarea id="input" rows="1" placeholder="用中文描述你的分析需求，回车发送…"></textarea>
+    <button id="send" onclick="send()">发送</button>
+  </div>
+</div>
+
+<script>
+const chat = document.getElementById('chat');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('send');
+
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function ask(t){ input.value = t; send(); }
+
+input.addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
+
+function inline(s){
+  s = esc(s);
+  s = s.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+  return s;
+}
+
+function renderTable(lines){
+  const parse = l => l.replace(/^\|/,'').replace(/\|$/,'').split('|').map(c => c.trim());
+  const header = parse(lines[0]);
+  let html = '<table><thead><tr>' + header.map(h => '<th>'+inline(h)+'</th>').join('') + '</tr></thead><tbody>';
+  for(let k=1;k<lines.length;k++){
+    if(/^\s*\|?[\s:\-|]+\|?\s*$/.test(lines[k])) continue; // 分隔行 |---|---|
+    html += '<tr>' + parse(lines[k]).map(c => '<td>'+inline(c)+'</td>').join('') + '</tr>';
+  }
+  return html + '</tbody></table>';
+}
+
+function md(text){
+  const lines = text.split('\n');
+  let html = '', i = 0, listType = null;
+  const closeList = () => { if(listType){ html += '</'+listType+'>'; listType = null; } };
+  while(i < lines.length){
+    const t = lines[i].trim();
+    if(t.startsWith('|')){ closeList(); const tl=[]; while(i<lines.length && lines[i].trim().startsWith('|')){ tl.push(lines[i].trim()); i++; } html += renderTable(tl); continue; }
+    let m = t.match(/^(#{1,4})\s+(.*)$/);
+    if(m){ closeList(); const lvl = m[1].length + 1; html += '<h'+lvl+' style="margin:14px 0 6px;font-size:'+(19-lvl)+'px;">'+inline(m[2])+'</h'+lvl+'>'; i++; continue; }
+    m = t.match(/^[-*]\s+(.*)$/);
+    if(m){ if(listType!=='ul'){ closeList(); html += '<ul style="margin:4px 0 4px 20px;">'; listType='ul'; } html += '<li>'+inline(m[1])+'</li>'; i++; continue; }
+    m = t.match(/^\d+\.\s+(.*)$/);
+    if(m){ if(listType!=='ol'){ closeList(); html += '<ol style="margin:4px 0 4px 20px;">'; listType='ol'; } html += '<li>'+inline(m[1])+'</li>'; i++; continue; }
+    closeList();
+    if(t===''){ html += '<div style="height:6px;"></div>'; i++; continue; }
+    html += '<p style="margin:4px 0;">'+inline(t)+'</p>';
+    i++;
+  }
+  closeList();
+  return html;
+}
+
+function addUser(text){
+  const m = document.createElement('div');
+  m.className = 'msg user';
+  m.innerHTML = '<div class="bubble">' + esc(text) + '</div>';
+  chat.appendChild(m); chat.scrollTop = chat.scrollHeight;
+}
+
+function addTyping(){
+  const m = document.createElement('div');
+  m.className = 'msg assistant';
+  m.innerHTML = '<div class="bubble typing">⏳ 正在分析：检索表结构 → 生成 SQL → 查询 → 计算 → 出报告…</div>';
+  chat.appendChild(m); chat.scrollTop = chat.scrollHeight;
+  return m;
+}
+
+function renderAssistant(data){
+  const m = document.createElement('div');
+  m.className = 'msg assistant';
+  let html = '';
+  if(data.trace && data.trace.length){
+    html += '<div class="steps">';
+    data.trace.forEach(s => {
+      html += '<details class="step"><summary><span>🔧</span> <span class="tname">' + esc(s.tool) + '</span>'
+           +  '<span class="targs">' + esc(JSON.stringify(s.args)) + '</span></summary>'
+           +  '<div class="tresult">' + esc(s.result) + '</div></details>';
+    });
+    html += '</div>';
+  }
+  html += '<div class="bubble answer">' + md(data.answer || '') + '</div>';
+  m.innerHTML = html;
+  chat.appendChild(m); chat.scrollTop = chat.scrollHeight;
+}
+
+function renderError(err){
+  const m = document.createElement('div');
+  m.className = 'msg assistant';
+  m.innerHTML = '<div class="err">运行出错：' + esc(err) + '</div>';
+  chat.appendChild(m); chat.scrollTop = chat.scrollHeight;
+}
+
+async function send(){
+  const text = input.value.trim();
+  if(!text) return;
+  addUser(text);
+  input.value = '';
+  sendBtn.disabled = true;
+  const typing = addTyping();
+  try{
+    const resp = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({message: text}) });
+    const data = await resp.json();
+    typing.remove();
+    if(resp.ok){ renderAssistant(data); } else { renderError(data.error || ('HTTP '+resp.status)); }
+  }catch(e){
+    typing.remove(); renderError(String(e));
+  }finally{
+    sendBtn.disabled = false; input.focus();
+  }
+}
+</script>
+</body>
+</html>
