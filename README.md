@@ -72,7 +72,7 @@ Agent 自动：
 ## 四、快速开始
 
 ```bash
-cd E:/data-agent
+cd data-agent
 
 # 1. 装依赖
 pip install -r requirements.txt
