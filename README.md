@@ -1,10 +1,29 @@
 # Data Agent —— 自然语言数据分析智能体
 
-> 求职作品集 #2，直击 JD 高频词 **Agent / Tool Calling / Text-to-SQL / RAG / LangGraph / FastAPI / Docker**。
+>  **Agent / Tool Calling / Text-to-SQL / RAG / LangGraph / FastAPI / Docker**。
 >
-> 一句话：用户用中文问「分析最近三个月各地区销售额，找出下降最明显的地区」，
-> 系统自动完成 **理解问题 → 查库(SQL) → Pandas 分析 → Plotly 画图 → 生成报告**。
+> 基于大语言模型与 Agent 工作流编排技术，实现自然语言到 SQL 查询、Python 数据分析及可视化报告生成的智能数据分析系统。
 
+核心目标：
+
+用户不需要掌握 SQL 或 Python，只需要通过自然语言描述分析需求，系统自动完成 **理解问题 → 查库(SQL) → Pandas 分析 → Plotly 画图 → 生成报告**。
+
+例如：
+
+用户输入：
+分析最近三个月各地区的销售额变化，找出销售额下降最明显的地区，分析可能原因，并生成一份可视化分析报告。
+
+系统自动完成：
+1. 理解分析需求。
+2. 检索数据库 Schema。
+3. 确定需要查询的表和字段。
+4. 生成 SQL 查询语句。
+5. 验证 SQL 合法性与安全性。
+6. 执行 SQL 并获取数据。
+7. 使用 Pandas 进行数据分析。
+8. 使用 Plotly 生成可视化图表。
+9. 结合分析结果生成报告。
+最终输出一份包含数据、图表、分析结论和建议的报告。
 ---
 
 ## 一、能做什么（演示效果）
@@ -144,47 +163,7 @@ data-agent/
 复杂 SQL 执行前弹出确认，用户拒绝后模型会调整查询。演示用 `input()` 实现；
 生产/网页版可升级为 LangGraph 的 `interrupt()` + 断点恢复。
 
----
-
-## 七、面试讲解稿（背熟 + 准备被追问）
-
-**开场一句话：**
-> 我做的 Data Agent 让用户用中文直接分析数据库。底层用 LangGraph 搭了一个 agent 循环：
-> 大模型（DeepSeek）通过 function calling 调用 6 个工具——查表结构、执行只读 SQL、用 Pandas
-> 算数、用 Plotly 画图、写报告。SQL 生成前先做 Schema RAG 检索相关表结构提升准确率，
-> 执行前用 SQLGlot 做 AST 校验只放行只读语句，复杂查询还会让用户确认。整体就是
-> 理解问题→查库→分析→可视化→报告 的一条 Agent 工作流。
-
-**可能被追问：**
-
-1. **「为什么用 LangGraph 而不是直接一个 while 循环？」**
-   → LangGraph 把状态、节点、条件边显式建模成图，多步任务的动态路由更清晰、可观测，
-   还天然支持 checkpointer 做断点恢复和 interrupt 做人工介入。我用了 StateGraph + 条件边。
-
-2. **「Text-to-SQL 怎么保证准确率？」**
-   → 三招：① Schema RAG——只把相关表结构塞进 prompt，减少无关信息干扰；② 字段带中文业务
-   含义和表关系；③ 执行报错把错误回传让模型自动改 SQL 重试。
-
-3. **「怎么防止大模型生成危险的 SQL？」**
-   → 三层：SQLGlot 解析成 AST 只放行 SELECT/UNION，拦截写操作；数据库用只读账号/只读连接 +
-   query_only；再加超时和行数上限。生产环境 PostgreSQL 就用只读角色。
-
-4. **「Human-in-the-Loop 在哪？」**
-   → 复杂 SQL（JOIN/聚合）执行前弹确认，用户拒绝后模型改方案。这是 LangGraph interrupt 的简化版。
-
-5. **「analyze_data 是让模型生成 Python 代码执行，安全吗？」**
-   → 演示级隔离（受限 builtins，去掉 __import__/open/eval），生产要放 Docker/e2b 沙箱。我会诚实说明这一点。
-
----
-
-## 八、诚实声明（面试别说漏嘴）
-
-- 数据库是**模拟电商数据**（seed_db.py 用随机数生成），不是真实公司数据。
-- embedding 用的是开源预训练模型 bge-small-zh（fastembed 调用），不是自己训练的。
-- 「演示级隔离」的 Python 执行不是真沙箱，别夸大成「安全沙箱」。
-- 目前是单 Agent + 多工具；多 Agent（SQL/Python/Report 三角色）是下一步演进方向。
-
-## 九、交付物清单
+## 七、交付物清单
 
 | 交付物 | 位置 |
 |---|---|
@@ -192,7 +171,6 @@ data-agent/
 | 数据库 ER 图 | `docs/数据库ER图.png` |
 | 核心业务流程图 | `docs/业务流程图.png` |
 | 测试报告（15/15 通过） | `docs/测试报告.md` |
-| 运行示例 & 截图清单 | `docs/运行示例.md` |
-| 演示视频脚本（逐句台词） | `docs/演示视频脚本.md` |
+| 运行示例  | `docs/运行示例.md` |
 
 > 三张图可随时重新生成：`python make_diagrams.py`；测试可复跑：`python run_tests.py`。
