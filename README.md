@@ -37,6 +37,12 @@ Agent 自动：
   ⑦ Plotly 画柱状图   ⑧ 写 Markdown 报告      ⑨ 中文汇报结论
 ```
 
+![网页版对话界面（Agent 工具调用链）](docs/front.png)
+
+![分析结论与建议](docs/result.png)
+
+![销售趋势图（HTML 报告）](docs/html.png)
+
 ---
 
 ## 二、系统架构
